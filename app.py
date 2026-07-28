@@ -1,26 +1,36 @@
 import os
 import gc
 import unicodedata
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. STRICT RESOURCE LIMITS (1 vCPU, 1 GB RAM)
+# ═══════════════════════════════════════════════════════════════════════════════
+os.environ["MKL_DISABLE_FAST_MM"] = "1"
+os.environ["MKL_THREADING_LAYER"] = "SEQUENTIAL"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 import streamlit as st
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 1. STRICT RESOURCE LIMITS (1 vCPU, 1 GB RAM) - Must be at the top!
+# 2. STREAMLIT PAGE CONFIG (MUST BE THE FIRST STREAMLIT CALL)
 # ═══════════════════════════════════════════════════════════════════════════════
-#os.environ["MKL_DISABLE_FAST_MM"] = "1"
-#os.environ["MKL_THREADING_LAYER"] = "SEQUENTIAL"
-#os.environ["OMP_NUM_THREADS"] = "1"
-#os.environ["MKL_NUM_THREADS"] = "1"
+st.set_page_config(
+    page_title="Bangla Dialect Translator", 
+    page_icon="🇧🇩", 
+    layout="centered"
+)
 
 import ctranslate2
 from transformers import AutoTokenizer
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 2. APP CONFIGURATION & MAPPING
+# 3. APP CONFIGURATION & DIALECT MAPPING
 # ═══════════════════════════════════════════════════════════════════════════════
-MODEL_PATH = "banglat5_lora_ct2"
+MODEL_PATH = "./banglat5_lora_ct2"
 TOKENIZER_NAME = "csebuetnlp/banglat5_small"
 
-# User-friendly names for the dropdown UI mapped to your internal lang codes
 LANG_MAPPING = {
     "Standard Bangla": "bangla_speech",
     "Sylheti": "sylhet_bangla_speech",
@@ -37,13 +47,11 @@ LANG_MAPPING = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 3. CACHED MODEL LOADING (Prevents reloading on every button click)
+# 4. CACHED MODEL LOADING
 # ═══════════════════════════════════════════════════════════════════════════════
 @st.cache_resource(show_spinner="Loading translation engine into memory...")
 def load_translator():
-    # Force garbage collection before loading
     gc.collect()
-    
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
     translator = ctranslate2.Translator(
         MODEL_PATH,
@@ -57,7 +65,7 @@ def load_translator():
 tokenizer, translator = load_translator()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 4. TRANSLATION LOGIC
+# 5. TRANSLATION LOGIC
 # ═══════════════════════════════════════════════════════════════════════════════
 def preprocess_bangla_text(text: str) -> str:
     """Normalizes Bangla Unicode characters and strips redundant whitespace."""
@@ -91,10 +99,8 @@ def translate(src_lang: str, tgt_lang: str, text: str) -> str:
     return preprocess_bangla_text(output_text)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 5. STREAMLIT FRONTEND UI
+# 6. STREAMLIT FRONTEND UI
 # ═══════════════════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Bangla Dialect Translator", page_icon="🇧🇩", layout="centered")
-
 st.title("🇧🇩 Bangla Poly-Dialect Translator")
 st.markdown("Translate between Standard Bangla and 11 Regional Dialects.")
 
@@ -110,7 +116,7 @@ with col2:
 # Text Input Area
 input_text = st.text_area(
     f"Enter text in {source_display}:", 
-    placeholder="আপনার নাম কি এবং আপনি কেমন আছেন?",
+    placeholder="তখন চারপাশের প্রকৃতি এক অপরূপ সৌন্দর্যে সেজে ওঠে...",
     height=150
 )
 
@@ -122,13 +128,10 @@ if st.button("Translate", type="primary", use_container_width=True):
         st.info("Source and Target dialects are the same. Please choose different dialects.")
     else:
         with st.spinner("Translating..."):
-            # Get internal language codes
             src_code = LANG_MAPPING[source_display]
             tgt_code = LANG_MAPPING[target_display]
             
-            # Run translation
             translation = translate(src_code, tgt_code, input_text)
             
-            # Display output
             st.success("Translation Complete!")
             st.text_area(f"Translation in {target_display}:", value=translation, height=150)
